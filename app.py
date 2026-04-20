@@ -84,6 +84,6 @@ def home():
     return "Servidor funcionando"
 
 
-# --- RUN ---
+# --- RUN LOCAL (Render usa gunicorn, esto es solo para pruebas) ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
