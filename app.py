@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import os
 import json
 
@@ -60,7 +61,7 @@ def asistencia():
 
         nombre = hoja_docentes.cell(fila, 2).value
 
-        fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        fecha = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%d/%m/%Y %H:%M:%S")
         hoja_asistencia.append_row([fecha, nombre, dni])
 
         print(f"✅ REGISTRADO: {nombre}")
