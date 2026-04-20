@@ -1,48 +1,89 @@
 from flask import Flask, request, jsonify
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import os
+import json
 
 app = Flask(__name__)
 
-# Base simple en memoria (para probar)
-docentes = {
-    "123": "Juan Perez",
-    "456": "Maria Gomez",
-    "789": "Carlos Lopez"
-}
+# --- CONEXIÓN A GOOGLE SHEETS ---
+def conectar_sheets():
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
 
+    creds_dict = json.loads(os.environ['GOOGLE_CREDENTIALS'])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
+    client = gspread.authorize(creds)
+    return client.open("Asistencia Colegio")  # ⚠️ nombre EXACTO
+
+# --- ENDPOINT PRINCIPAL ---
 @app.route('/asistencia', methods=['POST'])
 def asistencia():
     try:
         data = request.get_json()
         dni = str(data.get("id", "")).strip()
 
-        if dni in docentes:
-            nombre = docentes[dni]
+        print("\n--- NUEVA SOLICITUD ---")
+        print("DNI recibido:", dni)
 
-            print(f"{datetime.now()} - OK - {nombre} ({dni})")
-
+        if not dni:
             return jsonify({
-                "status": "ok",
-                "nombre": nombre
-            }), 200
-        else:
+                "status": "error",
+                "message": "DNI vacío"
+            }), 400
+
+        doc = conectar_sheets()
+
+        hoja_docentes = doc.worksheet("Docentes")  # ⚠️ EXACTO
+        hoja_asistencia = doc.worksheet("asistencia")  # ⚠️ EXACTO
+
+        lista_dnis = hoja_docentes.col_values(1)
+
+        print("DNIs en hoja:", lista_dnis)
+
+        fila = None
+        for i, valor in enumerate(lista_dnis, start=1):
+            if valor.strip() == dni:
+                fila = i
+                break
+
+        if fila is None:
+            print("❌ DNI NO ENCONTRADO")
             return jsonify({
                 "status": "error",
                 "message": "No registrado"
             }), 404
 
+        nombre = hoja_docentes.cell(fila, 2).value
+
+        fecha = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        hoja_asistencia.append_row([fecha, nombre, dni])
+
+        print(f"✅ REGISTRADO: {nombre}")
+
+        return jsonify({
+            "status": "ok",
+            "nombre": nombre
+        }), 200
+
     except Exception as e:
-        print("ERROR:", e)
+        print("🔥 ERROR:", e)
         return jsonify({
             "status": "error",
             "message": "Error servidor"
         }), 500
 
 
+# --- TEST ---
 @app.route('/')
 def home():
     return "Servidor funcionando"
 
 
+# --- RUN ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
